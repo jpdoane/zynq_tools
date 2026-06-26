@@ -81,7 +81,7 @@ foreach n [lsort [array names max]] {
     incr nprobes
 }
 
-save_constraints
+# save_constraints
 implement_debug_core
-write_debug_probes -force $PROJECT.ltx
+write_debug_probes -force probes.ltx
 

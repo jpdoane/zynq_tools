@@ -71,12 +71,13 @@ INC_FILES := $(call uniq_base,$(call process_f_files,$(INC_FILES)))
 ###################################################################
 
 PROJECTFILE = $(BUILD)/$(PROJECT).xpr
-SYNTH_DCP = $(BUILD)/$(PROJECT).runs/synth_1/$(PROJECT).dcp
-IMPL_DCP = $(BUILD)/$(PROJECT).runs/impl_1/$(PROJECT)_routed.dcp
+SYNTH_DCP = $(BUILD)/post_synth_debug.dcp
+IMPL_DCP = $(BUILD)/post_route.dcp
 BITFILE = $(BUILD)/$(PROJECT).bit
-PROBE_FILE = $(BUILD)/$(PROJECT).ltx
+PROBE_FILE = $(BUILD)/probes.ltx
 XSA_FILE = $(BUILD)/$(PROJECT).xsa
-TCL_ENV = $(BUILD)/env.tcl
+VDEF_FILE = $(BUILD)/defines.v
+SETUP_FILE = $(BUILD)/setup.tcl
 
 all: fpga
 vivado: $(PROJECTFILE)
@@ -114,93 +115,63 @@ distclean:: clean
 # create fresh project if Makefile or IP files have changed
 # create_project.tcl: Makefile $(XCI_FILES) $(TCL_FILES)
 
-$(BUILD)/env.tcl:
+$(VDEF_FILE): $(DEFS)
+	-mkdir $(BUILD)
+	rm -rf $(BUILD)/defines.v
+	touch $(BUILD)/defines.v
+	for x in $(DEFS); do echo '`define' $$x >> $(BUILD)/defines.v; done
+
+$(SETUP_FILE): $(VDEF_FILE) $(RTL_FILES) $(TCL_FILES) $(XDC_FILES)
 	-mkdir $(BUILD)
 	echo "set ROOT $(ROOT)" > $@
 	echo "set BUILD $(BUILD)" >> $@
 	echo "set DEVICE_LONG $(DEVICE_LONG)" >> $@
 	echo "set DEVICE_SHORT $(DEVICE_SHORT)" >> $@
 	echo "set BITFILE $(BITFILE)" >> $@
-	echo "set PROJECT $(PROJECT)" >> $@
+	echo "set PROJECTNAME $(PROJECT)" >> $@
 	echo "set TOP $(FPGA_TOP)" >> $@
+	echo "set_part $(DEVICE_LONG)" >> $@
 	for x in $(CONFIG_TCL_FILES); do echo "source $$x" >> $@; done
-
-$(BUILD)/create_project.tcl: $(BUILD)/env.tcl $(XCI_FILES) $(TCL_FILES) $(XDC_FILES)
-	rm -rf $(BUILD)/defines.v
-	touch $(BUILD)/defines.v
-	for x in $(DEFS); do echo '`define' $$x >> $(BUILD)/defines.v; done
-	cp $(TCL_ENV) $@
-	echo "create_project -force -part $(DEVICE_LONG) $(PROJECT)" >> $@
-	echo "add_files -fileset sources_1 defines.v $(RTL_FILES)" >> $@
-	echo "set_property top $(FPGA_TOP) [current_fileset]" >> $@
-	echo "add_files -fileset constrs_1 $(XDC_FILES)" >> $@
-	echo "import_files -fileset constrs_1 $(XDC_FILES)" >> $@
-	for x in $(XCI_FILES); do echo "import_ip $$x" >> $@; done
 	for x in $(TCL_FILES); do echo "source $$x" >> $@; done
-
-$(PROJECTFILE): $(BUILD)/create_project.tcl
-	cd $(BUILD); vivado -nojournal -nolog -mode batch $(foreach x,$?,-source $x)
+	echo "read_verilog $(RTL_FILES)" >> $@
+	echo "read_xdc $(XDC_FILES)" >> $@
 
 # synthesis run
-$(SYNTH_DCP): $(RTL_FILES) $(INC_FILES) $(XDC_FILES) | $(PROJECTFILE)
-	cp $(TCL_ENV) $(BUILD)/run_synth.tcl
-	echo "open_project $(PROJECTFILE)" >> $(BUILD)/run_synth.tcl
-	echo "import_files -force -fileset constrs_1 $(XDC_FILES)" >> $(BUILD)/run_synth.tcl
-	echo "reset_run synth_1" >> $(BUILD)/run_synth.tcl
-	echo "launch_runs -jobs 8 synth_1" >> $(BUILD)/run_synth.tcl
-	echo "wait_on_run synth_1" >> $(BUILD)/run_synth.tcl
-	echo "open_run synth_1" >> $(BUILD)/run_synth.tcl
+$(SYNTH_DCP): $(SETUP_FILE)
+	echo "source $(SETUP_FILE)" > $(BUILD)/run_synth.tcl
+	echo "synth_design -top $(FPGA_TOP) -part $(DEVICE_LONG) -flatten_hierarchy rebuilt" >> $(BUILD)/run_synth.tcl
 	@if [ -n "$(ILA_DEBUG)" ]; then \
 		echo "source $(ZYNQ_COMMON)/insert_ila.tcl" >> $(BUILD)/run_synth.tcl;  \
 	fi
 	echo "write_checkpoint -force $(SYNTH_DCP)" >> $(BUILD)/run_synth.tcl
-	cd $(BUILD); vivado -nojournal -nolog -mode batch -source $(BUILD)/run_synth.tcl
-
-lint: $(RTL_FILES) $(INC_FILES) $(XDC_FILES) | $(PROJECTFILE)
-	cp $(TCL_ENV) $(BUILD)/run_lint.tcl
-	echo "open_project $(PROJECTFILE)" >> $(BUILD)/run_lint.tcl
-	echo "synth_design -top $(FPGA_TOP) -part $(DEVICE_LONG) -lint" >> $(BUILD)/run_lint.tcl
-	cd $(BUILD); vivado -nojournal -nolog -mode batch -source $(BUILD)/run_lint.tcl
-
+	echo "report_timing_summary -file $(BUILD)/post_synth_timing.rpt" >> $(BUILD)/run_synth.tcl
+	cd $(BUILD); vivado -mode batch -source $(BUILD)/run_synth.tcl
 
 # implementation run
 $(IMPL_DCP): $(SYNTH_DCP)
-	cp $(TCL_ENV) $(BUILD)/run_impl.tcl
-	echo "open_project $(PROJECTFILE)" >> $(BUILD)/run_impl.tcl
-	echo "reset_run impl_1" >> $(BUILD)/run_impl.tcl
-	echo "launch_runs -jobs 8 impl_1" >> $(BUILD)/run_impl.tcl
-	echo "wait_on_run impl_1" >> $(BUILD)/run_impl.tcl
-	echo "open_run impl_1" >> $(BUILD)/run_impl.tcl
-	echo "report_utilization -file $(PROJECT)_utilization.rpt" >> $(BUILD)/run_impl.tcl
-	echo "report_utilization -hierarchical -file $(PROJECT)_utilization_hierarchical.rpt" >> $(BUILD)/run_impl.tcl
+	echo "open_checkpoint $(SYNTH_DCP)" > $(BUILD)/run_impl.tcl
+	echo "place_design" >> $(BUILD)/run_impl.tcl
+	echo "phys_opt_design" >> $(BUILD)/run_impl.tcl
+	echo "route_design" >> $(BUILD)/run_impl.tcl
 	echo "write_checkpoint -force $(IMPL_DCP)" >> $(BUILD)/run_impl.tcl
+	echo "report_timing_summary -file $(BUILD)/post_route_timing.rpt" >> $(BUILD)/run_impl.tcl
+	echo "report_utilization -file $(BUILD)/utilization.rpt" >> $(BUILD)/run_impl.tcl
+	echo "report_utilization -hierarchical -file $(BUILD)/utilization_hierarchical.rpt" >> $(BUILD)/run_impl.tcl
 	cd $(BUILD); vivado -mode batch -source $(BUILD)/run_impl.tcl
 
 # output files (including potentially bit, bin, ltx, and xsa)
-$(BITFILE) $(BUILD)/$(PROJECT).bin $(PROBE_FILE) $(XSA_FILE): $(IMPL_DCP)
-	cp $(TCL_ENV) $(BUILD)/generate_bit.tcl
-	echo "open_project $(PROJECTFILE)" >> $(BUILD)/generate_bit.tcl
-	echo "open_run impl_1" >> $(BUILD)/generate_bit.tcl
-	echo "write_bitstream -force -bin_file $(PROJECT).runs/impl_1/$(PROJECT).bit" >> $(BUILD)/generate_bit.tcl
-	echo "write_debug_probes -force $(PROJECT).runs/impl_1/$(PROJECT).ltx" >> $(BUILD)/generate_bit.tcl
-	echo "write_hw_platform -fixed -force -include_bit $(PROJECT).xsa" >> $(BUILD)/generate_bit.tcl
+$(BITFILE) $(BUILD)/$(PROJECT).bin $(XSA_FILE): $(IMPL_DCP)
+	echo "open_checkpoint $(IMPL_DCP)" > $(BUILD)/generate_bit.tcl
+	echo "write_bitstream -force -bin_file $(BITFILE)" >> $(BUILD)/generate_bit.tcl
+	@if [ -n "$(ILA_DEBUG)" ]; then \
+		echo "write_debug_probes -force $(PROBE_FILE)" >> $(BUILD)/generate_bit.tcl; \
+	fi
+	echo "write_hw_platform -fixed -force -include_bit $(XSA_FILE)" >> $(BUILD)/generate_bit.tcl
 	cd $(BUILD); vivado -nojournal -nolog -mode batch -source $(BUILD)/generate_bit.tcl
-	ln -f -s $(BUILD)/$(PROJECT).runs/impl_1/$(PROJECT).bit $(BUILD)
-	ln -f -s $(BUILD)/$(PROJECT).runs/impl_1/$(PROJECT).bin $(BUILD)
-	if [ -e $(BUILD)/$(PROJECT).runs/impl_1/$(PROJECT).ltx ]; then ln -f -s $(BUILD)/$(PROJECT).runs/impl_1/$(PROJECT).ltx $(BUILD); fi
-	mkdir -p rev
-	COUNT=100; \
-	while [ -e rev/$(PROJECT)_rev$$COUNT.bit ]; \
-	do COUNT=$$((COUNT+1)); done; \
-	cp -pv $(BUILD)/$(PROJECT).runs/impl_1/$(PROJECT).bit rev/$(PROJECT)_rev$$COUNT.bit; \
-	cp -pv $(BUILD)/$(PROJECT).runs/impl_1/$(PROJECT).bin rev/$(PROJECT)_rev$$COUNT.bin; \
-	if [ -e $(BUILD)/$(PROJECT).runs/impl_1/$(PROJECT).ltx ]; then cp -pv $(BUILD)/$(PROJECT).runs/impl_1/$(PROJECT).ltx rev/$(PROJECT)_rev$$COUNT.ltx; fi; \
-	if [ -e $(BUILD)/$(PROJECT).xsa ]; then cp -pv $(BUILD)/$(PROJECT).xsa rev/$(PROJECT)_rev$$COUNT.xsa; fi
 
 # open hw_manager and connect to fpga
 $(BUILD)/connect_device.tcl:
-	cp $(TCL_ENV) $@
-	echo "open_hw_manager" >> $@
+	echo "open_hw_manager" > $@
 	echo "connect_hw_server -url TCP:$(HW_SERVER)" >> $@
 	echo "open_hw_target" >> $@
 	echo "set DEVICE_ID [lsearch -glob [get_hw_devices] $(DEVICE_SHORT)* ]" >> $@
@@ -212,8 +183,8 @@ $(BUILD)/debug_hw.tcl: $(BUILD)/connect_device.tcl $(PROBE_FILE)
 		exit 1;\
 	fi
 	cp $(BUILD)/connect_device.tcl"  $@
-	echo "set_property PROBES.FILE {$(BUILD)/$(PROJECT).ltx} [current_hw_device]" >> $@
-	echo "set_property FULL_PROBES.FILE {$(BUILD)/debug_nets.ltx} [current_hw_device]" >> $@
+	echo "set_property PROBES.FILE $(PROBE_FILE) [current_hw_device]" >> $@
+	echo "set_property FULL_PROBES.FILE $(PROBE_FILE) [current_hw_device]" >> $@
 	echo "set_property PROGRAM.FILE {/home/jpdoane/6502_zynq/build/zynq_6502.bit} [current_hw_device]" >> $@
 	echo "program_hw_devices [current_hw_device]" >> $@
 	echo "refresh_hw_device [current_hw_device]" >> $@

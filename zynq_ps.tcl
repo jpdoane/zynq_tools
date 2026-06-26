@@ -658,6 +658,7 @@ for {set i 0} {$i < $NUM_AXIL_M} {incr i} {
 
 validate_bd_design
 save_bd_design
+generate_target all [get_files  .srcs/sources_1/bd/$design_name/$design_name.bd]
 
 # Generate wrapper and add as a source file
 set wrapper_file [make_wrapper \
@@ -666,3 +667,4 @@ set wrapper_file [make_wrapper \
     -top]
 
 add_files -norecurse $wrapper_file
+
