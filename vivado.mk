@@ -141,7 +141,7 @@ $(SYNTH_DCP): $(SETUP_FILE)
 	echo "source $(SETUP_FILE)" > $(BUILD)/run_synth.tcl
 	echo "synth_design -top $(FPGA_TOP) -part $(DEVICE_LONG) -flatten_hierarchy rebuilt" >> $(BUILD)/run_synth.tcl
 	@if [ -n "$(ILA_DEBUG)" ]; then \
-		echo "source $(ZYNQ_COMMON)/insert_ila.tcl" >> $(BUILD)/run_synth.tcl;  \
+		echo "source $(ZYNQ_TOOLS)/insert_ila.tcl" >> $(BUILD)/run_synth.tcl;  \
 	fi
 	echo "write_checkpoint -force $(SYNTH_DCP)" >> $(BUILD)/run_synth.tcl
 	echo "report_timing_summary -file $(BUILD)/post_synth_timing.rpt" >> $(BUILD)/run_synth.tcl

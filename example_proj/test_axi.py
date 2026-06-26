@@ -18,7 +18,7 @@ sys.path.append(str(INC_DIR))
 from xsct_utils import Xsct
 
 
-proj_name = my_zynq_project
+proj_name = "my_zynq_project"
 BITFILE = os.path.join(BUILD_DIR, f'{proj_name}.bit')
 XSA     = os.path.join(BUILD_DIR, f'{proj_name}.xsa')
 PS7     = os.path.join(BUILD_DIR, 'workspace', proj_name, '_ide', 'psinit', 'ps7_init.tcl')

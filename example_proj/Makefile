@@ -6,8 +6,8 @@ FPGA_TOP = zynq_top
 ROOT = $(abspath $(dir $(firstword $(MAKEFILE_LIST))))
 # build dir
 BUILD = $(ROOT)/build
-# zynq_common base dir
-ZYNQ_COMMON = $(abspath $(ROOT)/../)
+# ZYNQ_TOOLS base dir
+ZYNQ_TOOLS = $(abspath $(ROOT)/../)
 
 
 # board 
@@ -27,10 +27,10 @@ RTL_FILES = $(ROOT)/rtl/axil_regs.sv
 RTL_FILES += $(ROOT)/rtl/top.sv
 
 # constraints
-XDC_FILES = $(ZYNQ_COMMON)/boards/artyz7.xdc
+XDC_FILES = $(ZYNQ_TOOLS)/boards/artyz7.xdc
 
 # TCL sources (eg. PS with AXI)
-TCL_FILES = $(ZYNQ_COMMON)/zynq_ps.tcl
+TCL_FILES = $(ZYNQ_TOOLS)/zynq_ps.tcl
 
 # TCL project-specific config (run before all other scripts)
 CONFIG_TCL_FILES = $(ROOT)/config.tcl          
@@ -39,8 +39,8 @@ CONFIG_TCL_FILES = $(ROOT)/config.tcl
 # PS software
 PS_SOURCE = $(ROOT)/ps_src/main.c
 
-include $(ZYNQ_COMMON)/vivado.mk
-include $(ZYNQ_COMMON)/zynq.mk
+include $(ZYNQ_TOOLS)/vivado.mk
+include $(ZYNQ_TOOLS)/zynq.mk
 
 test: fpga target
 	python3 test_axi.py
