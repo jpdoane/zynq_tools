@@ -28,6 +28,7 @@ RTL_FILES += $(ROOT)/rtl/top.sv
 
 # constraints
 XDC_FILES = $(ZYNQ_TOOLS)/boards/artyz7.xdc
+XDC_FILES += $(ROOT)/clocks.xdc
 
 # TCL sources (eg. PS with AXI)
 TCL_FILES = $(ZYNQ_TOOLS)/zynq_ps.tcl

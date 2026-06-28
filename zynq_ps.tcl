@@ -3,9 +3,19 @@ set design_name zynq_ps_axi
 create_bd_design $design_name
 current_bd_design $design_name
 
-## provides two clocks:  clk_fpga_0 & clk_fpga_1
+## configures two PS clocks provides for PL:
+# clk_fpga_0
+#   pin: u_zynq/processing_system7_0/inst/FCLK_CLK0
+#   default freq: 100MHz (configurable with fclk0_MHz)
+#   default usage: unused
+# clk_fpga_1
+#   pin: u_zynq/processing_system7_0/inst/FCLK_CLK1
+#   default freq: 50MHz (configurable with fclk0_MHz)
+#   default usage: AXI bus
+
 if {![info exists fclk0_MHz]} { set fclk0_MHz 100.0 }
 if {![info exists fclk1_MHz]} { set fclk1_MHz 50.0 }
+
 
 # AXI-Lite master address map: one entry per master interface.
 # Each entry is a {offset range} pair. Supports non-contiguous addresses and
