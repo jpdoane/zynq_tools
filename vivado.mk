@@ -80,8 +80,13 @@ VDEF_FILE = $(BUILD)/defines.v
 SETUP_FILE = $(BUILD)/setup.tcl
 
 all: fpga
-vivado: $(PROJECTFILE)
-	cd $(BUILD); vivado $<
+vivado: $(SETUP_FILE)
+	cd $(BUILD); vivado -source $<
+
+elaborate: $(SETUP_FILE)
+	echo "source $(SETUP_FILE)" >> elab.tcl
+	echo "synth_design -top $(FPGA_TOP) -rtl" >> elab.tcl
+	cd $(BUILD); vivado -mode tcl -source elab.tcl
 
 synth: $(SYNTH_DCP)
 impl: $(IMPL_DCP)
@@ -134,7 +139,21 @@ $(SETUP_FILE): $(VDEF_FILE) $(RTL_FILES) $(TCL_FILES) $(XDC_FILES)
 	for x in $(CONFIG_TCL_FILES); do echo "source $$x" >> $@; done
 	for x in $(TCL_FILES); do echo "source $$x" >> $@; done
 	echo "read_verilog $(RTL_FILES)" >> $@
-	echo "read_xdc $(XDC_FILES)" >> $@
+	for x in $(XDC_FILES); do echo "read_xdc $$x" >> $@; done
+
+$(BUILD)/%.log: $(BUILD)/%.tcl
+	cd $(BUILD); \
+	vivado -mode batch -log $@ -source $<; \
+	e=$$?; \
+	grep '^WARNING' $@ > $(BUILD)/$*_warn.log || true; \
+	grep -e '^CRITICAL' -e '^ERROR' $@ > $(BUILD)/$*_err.log || true; \
+	cat $(BUILD)/$*_err.log; \
+	if [ $$e -eq 0 ]; then \
+		echo "$* SUCCESS"; \
+	else \
+		echo "$* FAILED"; \
+	fi; \
+	exit $$e	
 
 # synthesis run
 $(SYNTH_DCP): $(SETUP_FILE)
@@ -145,7 +164,7 @@ $(SYNTH_DCP): $(SETUP_FILE)
 	fi
 	echo "write_checkpoint -force $(SYNTH_DCP)" >> $(BUILD)/run_synth.tcl
 	echo "report_timing_summary -file $(BUILD)/post_synth_timing.rpt" >> $(BUILD)/run_synth.tcl
-	cd $(BUILD); vivado -mode batch -source $(BUILD)/run_synth.tcl
+	make $(BUILD)/run_synth.log
 
 # implementation run
 $(IMPL_DCP): $(SYNTH_DCP)
@@ -157,7 +176,7 @@ $(IMPL_DCP): $(SYNTH_DCP)
 	echo "report_timing_summary -file $(BUILD)/post_route_timing.rpt" >> $(BUILD)/run_impl.tcl
 	echo "report_utilization -file $(BUILD)/utilization.rpt" >> $(BUILD)/run_impl.tcl
 	echo "report_utilization -hierarchical -file $(BUILD)/utilization_hierarchical.rpt" >> $(BUILD)/run_impl.tcl
-	cd $(BUILD); vivado -mode batch -source $(BUILD)/run_impl.tcl
+	make $(BUILD)/run_impl.log
 
 # output files (including potentially bit, bin, ltx, and xsa)
 $(BITFILE) $(BUILD)/$(PROJECT).bin $(XSA_FILE): $(IMPL_DCP)
@@ -167,7 +186,7 @@ $(BITFILE) $(BUILD)/$(PROJECT).bin $(XSA_FILE): $(IMPL_DCP)
 		echo "write_debug_probes -force $(PROBE_FILE)" >> $(BUILD)/generate_bit.tcl; \
 	fi
 	echo "write_hw_platform -fixed -force -include_bit $(XSA_FILE)" >> $(BUILD)/generate_bit.tcl
-	cd $(BUILD); vivado -nojournal -nolog -mode batch -source $(BUILD)/generate_bit.tcl
+	make $(BUILD)/generate_bit.log
 
 # open hw_manager and connect to fpga
 $(BUILD)/connect_device.tcl:

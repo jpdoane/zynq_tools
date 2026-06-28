@@ -3,18 +3,20 @@ set design_name zynq_ps_axi
 create_bd_design $design_name
 current_bd_design $design_name
 
-## configures two PS clocks provides for PL:
+## two PS clocks are configured for use in PL:
 # clk_fpga_0
 #   pin: u_zynq/processing_system7_0/inst/FCLK_CLK0
-#   default freq: 100MHz (configurable with fclk0_MHz)
-#   default usage: unused
+#   default freq: 100MHz (configurable with fCLK0_MHZ)
 # clk_fpga_1
 #   pin: u_zynq/processing_system7_0/inst/FCLK_CLK1
-#   default freq: 50MHz (configurable with fclk0_MHz)
-#   default usage: AXI bus
+#   default freq: 50MHz (configurable with fCLK0_MHZ)
+if {![info exists fCLK0_MHZ]} { set fCLK0_MHZ 100.0 }
+if {![info exists fCLK1_MHZ]} { set fCLK1_MHZ 50.0 }
 
-if {![info exists fclk0_MHz]} { set fclk0_MHz 100.0 }
-if {![info exists fclk1_MHz]} { set fclk1_MHz 50.0 }
+## AXI bus is clocked by PL provided clock ACLK_in
+# by default this is assumed to be same freq as fCLK1_MHZ
+# but can be modified by setting fACLK_MHz
+if {![info exists fACLK_MHZ]} { set fACLK_MHZ $fCLK1_MHZ }
 
 
 # AXI-Lite master address map: one entry per master interface.
@@ -68,14 +70,15 @@ for {set i 0} {$i < $NUM_AXIL_M} {incr i} {
 
 
 # Create ports
-set ACLK_in [ create_bd_port -dir I -type clk ACLK_in ]
-set_property -dict [ list \
-CONFIG.ASSOCIATED_BUSIF "$axil_busif_list:S00_AXI_0" \
-] $ACLK_in
+set fACLK_HZ [expr $fACLK_MHZ * 1000000]
+set ACLK_in [ create_bd_port -dir I -type clk ACLK_in -freq_hz $fACLK_HZ]
+set CLK0 [ create_bd_port -dir O -type clk CLK0 ]
 set CLK1 [ create_bd_port -dir O -type clk CLK1 ]
-set CLK2 [ create_bd_port -dir O -type clk CLK2 ]
 set ARST [ create_bd_port -dir O -from 0 -to 0 -type rst ARST ]
-set ARSTN [ create_bd_port -dir O -from 0 -to 0 -type rst ARSTN ]
+set ARST_in [ create_bd_port -dir I -from 0 -to 0 -type rst ARST_in ]
+# set_property -dict [ list \
+# CONFIG.ASSOCIATED_BUSIF "$axil_busif_list:S00_AXI_0" \
+# ] $ACLK_in
 
 # Create instance: processing_system7_0, and set properties
 set processing_system7_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:processing_system7:5.5 processing_system7_0 ]
@@ -87,8 +90,8 @@ CONFIG.PCW_ACT_CAN_PERIPHERAL_FREQMHZ {10.000000} \
 CONFIG.PCW_ACT_DCI_PERIPHERAL_FREQMHZ {10.096154} \
 CONFIG.PCW_ACT_ENET0_PERIPHERAL_FREQMHZ {125.000000} \
 CONFIG.PCW_ACT_ENET1_PERIPHERAL_FREQMHZ {10.000000} \
-CONFIG.PCW_ACT_FPGA0_PERIPHERAL_FREQMHZ [expr $fclk0_MHz] \
-CONFIG.PCW_ACT_FPGA1_PERIPHERAL_FREQMHZ [expr $fclk1_MHz] \
+CONFIG.PCW_ACT_FPGA0_PERIPHERAL_FREQMHZ [expr $fCLK0_MHZ] \
+CONFIG.PCW_ACT_FPGA1_PERIPHERAL_FREQMHZ [expr $fCLK1_MHZ] \
 CONFIG.PCW_ACT_FPGA2_PERIPHERAL_FREQMHZ {10.000000} \
 CONFIG.PCW_ACT_FPGA3_PERIPHERAL_FREQMHZ {10.000000} \
 CONFIG.PCW_ACT_I2C_PERIPHERAL_FREQMHZ {50} \
@@ -115,8 +118,8 @@ CONFIG.PCW_CAN0_PERIPHERAL_CLKSRC {External} \
 CONFIG.PCW_CAN1_PERIPHERAL_CLKSRC {External} \
 CONFIG.PCW_CAN_PERIPHERAL_CLKSRC {IO PLL} \
 CONFIG.PCW_CAN_PERIPHERAL_VALID {0} \
-CONFIG.PCW_CLK0_FREQ [expr $fclk0_MHz * 1000000] \
-CONFIG.PCW_CLK1_FREQ [expr $fclk1_MHz * 1000000] \
+CONFIG.PCW_CLK0_FREQ [expr $fCLK0_MHZ * 1000000] \
+CONFIG.PCW_CLK1_FREQ [expr $fCLK1_MHZ * 1000000] \
 CONFIG.PCW_CLK2_FREQ {10000000} \
 CONFIG.PCW_CLK3_FREQ {10000000} \
 CONFIG.PCW_CPU_CPU_6X4X_MAX_RANGE {667} \
@@ -216,8 +219,8 @@ CONFIG.PCW_FCLK2_PERIPHERAL_CLKSRC {IO PLL} \
 CONFIG.PCW_FCLK3_PERIPHERAL_CLKSRC {IO PLL} \
 CONFIG.PCW_FCLK_CLK0_BUF {TRUE} \
 CONFIG.PCW_FCLK_CLK1_BUF {FALSE} \
-CONFIG.PCW_FPGA0_PERIPHERAL_FREQMHZ [expr $fclk0_MHz] \
-CONFIG.PCW_FPGA1_PERIPHERAL_FREQMHZ [expr $fclk1_MHz] \
+CONFIG.PCW_FPGA0_PERIPHERAL_FREQMHZ [expr $fCLK0_MHZ] \
+CONFIG.PCW_FPGA1_PERIPHERAL_FREQMHZ [expr $fCLK1_MHZ] \
 CONFIG.PCW_FPGA2_PERIPHERAL_FREQMHZ {10} \
 CONFIG.PCW_FPGA3_PERIPHERAL_FREQMHZ {10} \
 CONFIG.PCW_FPGA_FCLK0_ENABLE {1} \
@@ -639,21 +642,22 @@ for {set i 0} {$i < $NUM_AXIL_M} {incr i} {
 # connect_bd_intf_net -intf_net S00_AXI_0_1 [get_bd_intf_ports S00_AXI_0] [get_bd_intf_pins smartconnect_0/S01_AXI]
 
 # Create port connections
-connect_bd_net -net M_AXI_GP0_ACLK_0_1  [get_bd_ports ACLK_in] \
-[get_bd_pins processing_system7_0/M_AXI_GP0_ACLK] \
-[get_bd_pins smartconnect_0/aclk]
-connect_bd_net -net proc_sys_reset_0_peripheral_aresetn  [get_bd_pins proc_sys_reset_0/peripheral_aresetn] \
-[get_bd_ports ARSTN] \
-[get_bd_pins smartconnect_0/aresetn]
-connect_bd_net -net proc_sys_reset_0_peripheral_reset  [get_bd_pins proc_sys_reset_0/peripheral_reset] \
-[get_bd_ports ARST]
-connect_bd_net -net processing_system7_0_FCLK_CLK0  [get_bd_pins processing_system7_0/FCLK_CLK0] \
-[get_bd_ports CLK1] \
-[get_bd_pins proc_sys_reset_0/slowest_sync_clk]
-connect_bd_net -net processing_system7_0_FCLK_CLK1  [get_bd_pins processing_system7_0/FCLK_CLK1] \
-[get_bd_ports CLK2]
-connect_bd_net -net processing_system7_0_FCLK_RESET0_N  [get_bd_pins processing_system7_0/FCLK_RESET0_N] \
-[get_bd_pins proc_sys_reset_0/ext_reset_in]
+connect_bd_net -net M_AXI_GP0_ACLK_0_1  [get_bd_ports ACLK_in] [get_bd_pins processing_system7_0/M_AXI_GP0_ACLK] [get_bd_pins smartconnect_0/aclk]
+connect_bd_net -net proc_sys_reset_0_peripheral_reset  [get_bd_pins proc_sys_reset_0/peripheral_reset] [get_bd_ports ARST]
+connect_bd_net -net processing_system7_0_FCLK_CLK0  [get_bd_pins processing_system7_0/FCLK_CLK0] [get_bd_ports CLK0] 
+connect_bd_net -net processing_system7_0_FCLK_CLK1  [get_bd_pins processing_system7_0/FCLK_CLK1] [get_bd_ports CLK1] [get_bd_pins proc_sys_reset_0/slowest_sync_clk]
+connect_bd_net -net processing_system7_0_FCLK_RESET0_N  [get_bd_pins processing_system7_0/FCLK_RESET0_N] [get_bd_pins proc_sys_reset_0/ext_reset_in]
+connect_bd_net [get_bd_ports ARST_in] [get_bd_pins proc_sys_reset_0/aux_reset_in]
+connect_bd_net [get_bd_pins proc_sys_reset_0/interconnect_aresetn] [get_bd_pins smartconnect_0/aresetn]
+
+# make ARST_in active high
+set_property -dict [list CONFIG.POLARITY ACTIVE_HIGH] [get_bd_ports ARST_in]
+set_property CONFIG.ASSOCIATED_RESET {ARST_in} [get_bd_ports /ACLK_in]
+set_property -dict [list \
+  CONFIG.C_AUX_RESET_HIGH {1} \
+  CONFIG.C_AUX_RST_WIDTH {1} \
+  CONFIG.C_EXT_RST_WIDTH {1} \
+] [get_bd_cells proc_sys_reset_0]
 
 # Create address segments using per-master {offset range} entries from AXIL_ADDR_MAP
 for {set i 0} {$i < $NUM_AXIL_M} {incr i} {

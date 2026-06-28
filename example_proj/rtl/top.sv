@@ -36,7 +36,9 @@ module zynq_top
     // Clocks / resets from Zynq PS block design
     wire ACLK;   // 50 MHz from FCLK_CLK1 (drives all PL logic)
     wire ARST;   // active-high synchronous reset
-    wire ARSTN;  // active-low (for smartconnect)
+
+    // map btn[0] to reset module
+    wire btn_rst = BTN[0];
 
     // axil-mapped registers
     localparam int N_REGS = 16;
@@ -84,17 +86,17 @@ module zynq_top
     logic        axil1_rready;
 
 
+
     // -----------------------------------------------------------------------
     // Zynq PS block design (for axi)
     // -----------------------------------------------------------------------
     zynq_ps_axi u_zynq
     (
-        .ACLK_in          (ACLK),
+        .ACLK_in          (ACLK),       // use 50MHz CLK1 for AXI clock
         .ARST             (ARST),
-        .ARSTN            (ARSTN),
-        .CLK1             (),           // 100 MHz -- unused
-        .CLK2             (ACLK),       // 50 MHz  -- main PL clock
-
+        .ARST_in          (btn_rst),
+        .CLK0             (),           // 100 MHz -- unused
+        .CLK1             (ACLK),       // 50 MHz  -- main PL clock
         .DDR_addr         (DDR_addr),
         .DDR_ba           (DDR_ba),
         .DDR_cas_n        (DDR_cas_n),
