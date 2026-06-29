@@ -71,7 +71,7 @@ INC_FILES := $(call uniq_base,$(call process_f_files,$(INC_FILES)))
 ###################################################################
 
 PROJECTFILE = $(BUILD)/$(PROJECT).xpr
-SYNTH_DCP = $(BUILD)/post_synth_debug.dcp
+SYNTH_DCP = $(BUILD)/post_synth.dcp
 IMPL_DCP = $(BUILD)/post_route.dcp
 BITFILE = $(BUILD)/$(PROJECT).bit
 PROBE_FILE = $(BUILD)/probes.ltx
@@ -84,8 +84,8 @@ vivado: $(SETUP_FILE)
 	cd $(BUILD); vivado -source $<
 
 elaborate: $(SETUP_FILE)
-	echo "source $(SETUP_FILE)" >> elab.tcl
-	echo "synth_design -top $(FPGA_TOP) -rtl" >> elab.tcl
+	echo "source $(SETUP_FILE)" >> $(BUILD)/elab.tcl
+	echo "synth_design -top $(FPGA_TOP) -rtl" >> $(BUILD)/elab.tcl
 	cd $(BUILD); vivado -mode tcl -source elab.tcl
 
 synth: $(SYNTH_DCP)
@@ -125,6 +125,11 @@ $(VDEF_FILE): $(DEFS)
 	rm -rf $(BUILD)/defines.v
 	touch $(BUILD)/defines.v
 	for x in $(DEFS); do echo '`define' $$x >> $(BUILD)/defines.v; done
+	@if [ -n "$(ILA_DEBUG)" ]; then \
+		echo '`define ILA_DEBUG 1' >> $(BUILD)/defines.v;  \
+	fi
+
+
 
 $(SETUP_FILE): $(VDEF_FILE) $(RTL_FILES) $(TCL_FILES) $(XDC_FILES)
 	-mkdir $(BUILD)
@@ -138,6 +143,7 @@ $(SETUP_FILE): $(VDEF_FILE) $(RTL_FILES) $(TCL_FILES) $(XDC_FILES)
 	echo "set_part $(DEVICE_LONG)" >> $@
 	for x in $(CONFIG_TCL_FILES); do echo "source $$x" >> $@; done
 	for x in $(TCL_FILES); do echo "source $$x" >> $@; done
+	echo "read_verilog $(VDEF_FILE)" >> $@
 	echo "read_verilog $(RTL_FILES)" >> $@
 	for x in $(XDC_FILES); do echo "read_xdc $$x" >> $@; done
 
@@ -201,10 +207,10 @@ $(BUILD)/debug_hw.tcl: $(BUILD)/connect_device.tcl $(PROBE_FILE)
 		echo "set ILA_DEBUG variable to enable debug"; \
 		exit 1;\
 	fi
-	cp $(BUILD)/connect_device.tcl"  $@
+	cp $(BUILD)/connect_device.tcl  $@
 	echo "set_property PROBES.FILE $(PROBE_FILE) [current_hw_device]" >> $@
 	echo "set_property FULL_PROBES.FILE $(PROBE_FILE) [current_hw_device]" >> $@
-	echo "set_property PROGRAM.FILE {/home/jpdoane/6502_zynq/build/zynq_6502.bit} [current_hw_device]" >> $@
+	echo "set_property PROGRAM.FILE $(BITFILE) [current_hw_device]" >> $@
 	echo "program_hw_devices [current_hw_device]" >> $@
 	echo "refresh_hw_device [current_hw_device]" >> $@
 	echo "display_hw_ila_data [ get_hw_ila_data hw_ila_data_1 -of_objects [get_hw_ilas -of_objects [current_hw_device] -filter {CELL_NAME=~"ila_*"}]]" >> $@

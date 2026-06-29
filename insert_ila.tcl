@@ -8,7 +8,7 @@
 #   - All debug nets use the same ILA properties (single ILA core).
 ######################################################################
 
-if {![info exists ila_clk]} { set ila_clk u_zynq/CLK2}
+if {![info exists ila_clk]} { set ila_clk clk_fpga_1}
 if {![info exists ila_depth]} { set ila_depth 1024}
 if {![info exists ila_name]} { set ila_name ila_0}
 
