@@ -37,7 +37,7 @@
 ###################################################################
 
 # phony targets
-.PHONY: fpga vivado synth impl program flash tmpclean clean distclean debug lint
+.PHONY: fpga vivado synth impl program flash tmpclean clean distclean debug lint project
 # prevent make from deleting intermediate files and reports
 .PRECIOUS: %.xpr %.bit %.bin %.ltx %.xsa %.mcs %.prm
 .SECONDARY:
@@ -93,6 +93,7 @@ impl: $(IMPL_DCP)
 fpga: $(BITFILE)
 
 
+
 # tmpclean::
 # 	-rm -rf *.log *.jou *.cache *.gen *.hbs *.hw *.ip_user_files *.runs *.xpr *.html *.xml *.sim *.srcs *.str .Xil defines.v
 # 	-rm -rf create_project.tcl update_config.tcl run_synth.tcl run_impl.tcl generate_bit.tcl
@@ -114,11 +115,6 @@ distclean:: clean
 ###################################################################
 # Target implementations
 ###################################################################
-
-
-# Vivado project file
-# create fresh project if Makefile or IP files have changed
-# create_project.tcl: Makefile $(XCI_FILES) $(TCL_FILES)
 
 $(VDEF_FILE): $(DEFS)
 	-mkdir $(BUILD)
@@ -161,6 +157,13 @@ $(BUILD)/%.log: $(BUILD)/%.tcl
 	fi; \
 	exit $$e	
 
+project: $(SETUP_FILE)
+	echo "create_project -force -part $(DEVICE_LONG) $(PROJECT)" > $(BUILD)/create_project.tcl
+	echo "set_property top $(FPGA_TOP) [current_fileset]" >> $(BUILD)/create_project.tcl
+	echo "source $(SETUP_FILE)" >> $(BUILD)/create_project.tcl
+	cd $(BUILD); vivado -source $(BUILD)/create_project.tcl;
+	
+
 # synthesis run
 $(SYNTH_DCP): $(SETUP_FILE)
 	echo "source $(SETUP_FILE)" > $(BUILD)/run_synth.tcl
@@ -175,8 +178,11 @@ $(SYNTH_DCP): $(SETUP_FILE)
 # implementation run
 $(IMPL_DCP): $(SYNTH_DCP)
 	echo "open_checkpoint $(SYNTH_DCP)" > $(BUILD)/run_impl.tcl
+	@if [ -n "$(ILA_DEBUG)" ]; then \
+		echo "read_xdc debug_cores.xdc" >> $(BUILD)/run_impl.tcl; \
+	fi
+	echo "opt_design" >> $(BUILD)/run_impl.tcl
 	echo "place_design" >> $(BUILD)/run_impl.tcl
-	echo "phys_opt_design" >> $(BUILD)/run_impl.tcl
 	echo "route_design" >> $(BUILD)/run_impl.tcl
 	echo "write_checkpoint -force $(IMPL_DCP)" >> $(BUILD)/run_impl.tcl
 	echo "report_timing_summary -file $(BUILD)/post_route_timing.rpt" >> $(BUILD)/run_impl.tcl

@@ -40,7 +40,6 @@ CONFIG_TCL_FILES = $(ROOT)/config.tcl
 # PS software
 PS_SOURCE = $(ROOT)/ps_src/main.c
 
-include $(ZYNQ_TOOLS)/vivado.mk
 include $(ZYNQ_TOOLS)/zynq.mk
 
 test: fpga target

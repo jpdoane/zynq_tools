@@ -1,34 +1,28 @@
 # phony targets
-.PHONY: target fsbl flash clean
+.PHONY: target fsbl flash run clean
 
 # prevent make from deleting intermediate files and reports
 .PRECIOUS: %.xpr %.bit %.bin %.ltx %.xsa %.mcs %.prm
 .SECONDARY:
 
-CONFIG ?= config.mk
--include $(CONFIG)
 
-
-HW_SERVER ?= 127.0.0.1:3121
-FLASH_TARGET_ID ?= 3
+include $(ZYNQ_TOOLS)/vivado.mk
 
 SRC_PATH ?= $(ROOT)/ps_src
 SRC ?= $(wildcard $(SRC_PATH)/*.c)
 
-PROJECT ?= zynq_sdram
-
 WORKSPACE = $(BUILD)/workspace
 
 PLATFORM = artyz7
-XSA_FILE = $(BUILD)/$(PROJECT).xsa
-BIT = $(BUILD)/$(PROJECT).bit
-BIF = $(BUILD)/$(PROJECT).bif
+BIF = $(BITFILE:.bit=.bif)
 BOOT = $(BUILD)/BOOT.bin
 
 FSBL = $(WORKSPACE)/$(PLATFORM)/export/$(PLATFORM)/sw/boot/fsbl.elf
 
-APPLICATION ?= $(PROJECT)
+APPLICATION ?= $(FPGA_TOP)
 TARGET = $(WORKSPACE)/$(APPLICATION)/build/$(APPLICATION).elf
+
+PS7_INIT = $(WORKSPACE)/$(APPLICATION)/_ide/psinit/ps7_init.tcl
 
 TMPSCRIPT_PY=$(BUILD)/vitis_script.py
 
@@ -87,11 +81,11 @@ $(TARGET): $(FSBL) $(SRC) |  $(WORKSPACE)/$(APPLICATION)
 	echo "client.close()" >> $(TMPSCRIPT_PY)
 	cd $(BUILD); vitis -s $(TMPSCRIPT_PY)
 
-$(BIF): $(TARGET) $(BIT) $(FSBL)
+$(BIF): $(TARGET) $(BITFILE) $(FSBL)
 	echo "the_ROM_image:" > $@
 	echo "{" >> $@
 	echo "[bootloader]$(FSBL)" >> $@
-	echo $(BIT) >> $@
+	echo $(BITFILE) >> $@
 	echo $(TARGET) >> $@
 	echo "}" >> $@
 
@@ -108,7 +102,7 @@ run: $(BOOT) $(FSBL)
 	echo "rst -system" >> $(BUILD)/run.tcl
 	echo "after 1000" >> $(BUILD)/run.tcl
 	echo "targets -set -filter {name =~\"$(DEVICE_SHORT)\"}" >> $(BUILD)/run.tcl
-	echo "fpga -file $(BIT)" >> $(BUILD)/run.tcl
+	echo "fpga -file $(BITFILE)" >> $(BUILD)/run.tcl
 	echo "targets -set -nocase -filter {name =~\"APU*\"}" >> $(BUILD)/run.tcl
 	echo "loadhw -hw $(XSA_FILE) -mem-ranges [list {0x40000000 0xbfffffff}] -regs" >> $(BUILD)/run.tcl
 	echo "configparams force-mem-access 1" >> $(BUILD)/run.tcl

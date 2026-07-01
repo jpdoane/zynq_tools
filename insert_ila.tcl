@@ -84,4 +84,4 @@ foreach n [lsort [array names max]] {
 # save_constraints
 implement_debug_core
 write_debug_probes -force probes.ltx
-
+write_xdc -force debug_cores.xdc
