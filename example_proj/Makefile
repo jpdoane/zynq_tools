@@ -42,5 +42,6 @@ PS_SOURCE = $(ROOT)/ps_src/main.c
 
 include $(ZYNQ_TOOLS)/zynq.mk
 
-test: fpga target
+test: loadhw
+	source $(ENV_SCRIPT)
 	python3 test_axi.py

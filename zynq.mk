@@ -1,10 +1,11 @@
 # phony targets
-.PHONY: target fsbl flash run clean
+.PHONY: target fsbl flash run clean loadhw
 
 # prevent make from deleting intermediate files and reports
 .PRECIOUS: %.xpr %.bit %.bin %.ltx %.xsa %.mcs %.prm
 .SECONDARY:
 
+PYTHON=python3
 
 include $(ZYNQ_TOOLS)/vivado.mk
 
@@ -21,7 +22,6 @@ FSBL = $(WORKSPACE)/$(PLATFORM)/export/$(PLATFORM)/sw/boot/fsbl.elf
 
 APPLICATION ?= $(FPGA_TOP)
 TARGET = $(WORKSPACE)/$(APPLICATION)/build/$(APPLICATION).elf
-
 PS7_INIT = $(WORKSPACE)/$(APPLICATION)/_ide/psinit/ps7_init.tcl
 
 TMPSCRIPT_PY=$(BUILD)/vitis_script.py
@@ -29,7 +29,7 @@ TMPSCRIPT_PY=$(BUILD)/vitis_script.py
 workspace: $(WORKSPACE)
 platform: $(WORKSPACE)/$(PLATFORM)
 fsbl: $(FSBL)
-target: $(TARGET)
+target: $(TARGET) $(BUILD)/load_hw.py
 
 $(WORKSPACE):
 	@echo "Making Vitis workspace $@"
@@ -95,29 +95,36 @@ $(BOOT): $(BIF)
 flash: $(BOOT) $(FSBL)
 	program_flash -f $(BOOT) -offset 0 -flash_type qspi-x4-single -target_id $(FLASH_TARGET_ID) -fsbl $(FSBL) -url TCP:$(HW_SERVER)
 
-run: $(BOOT) $(FSBL)
-	@echo "Running application on ps"
-	echo "connect" > $(BUILD)/run.tcl
-	echo "targets -set -nocase -filter {name =~\"APU*\"}" >> $(BUILD)/run.tcl
-	echo "rst -system" >> $(BUILD)/run.tcl
-	echo "after 1000" >> $(BUILD)/run.tcl
-	echo "targets -set -filter {name =~\"$(DEVICE_SHORT)\"}" >> $(BUILD)/run.tcl
-	echo "fpga -file $(BITFILE)" >> $(BUILD)/run.tcl
-	echo "targets -set -nocase -filter {name =~\"APU*\"}" >> $(BUILD)/run.tcl
-	echo "loadhw -hw $(XSA_FILE) -mem-ranges [list {0x40000000 0xbfffffff}] -regs" >> $(BUILD)/run.tcl
-	echo "configparams force-mem-access 1" >> $(BUILD)/run.tcl
-	echo "targets -set -nocase -filter {name =~\"APU*\"}" >> $(BUILD)/run.tcl
-	echo "source $(WORKSPACE)/$(APPLICATION)/_ide/psinit/ps7_init.tcl" >> $(BUILD)/run.tcl
-	echo "ps7_init" >> $(BUILD)/run.tcl
-	echo "ps7_post_config" >> $(BUILD)/run.tcl
-	echo "targets -set -nocase -filter {name =~ \"*A9*#0\"}" >> $(BUILD)/run.tcl
-	echo "dow $(TARGET)" >> $(BUILD)/run.tcl
-	echo "configparams force-mem-access 0" >> $(BUILD)/run.tcl
-	echo "targets -set -nocase -filter {name =~ \"*A9*#0\"}" >> $(BUILD)/run.tcl
-	echo "con" >> $(BUILD)/run.tcl
-	xsct $(BUILD)/run.tcl
-	
+# run: $(BOOT) $(FSBL)
+# 	@echo "Running application on ps"
+# 	echo "connect" > $(BUILD)/run.tcl
+# 	echo "targets -set -nocase -filter {name =~\"APU*\"}" >> $(BUILD)/run.tcl
+# 	echo "rst -system" >> $(BUILD)/run.tcl
+# 	echo "after 1000" >> $(BUILD)/run.tcl
+# 	echo "targets -set -filter {name =~\"$(DEVICE_SHORT)\"}" >> $(BUILD)/run.tcl
+# 	echo "fpga -file $(BITFILE)" >> $(BUILD)/run.tcl
+# 	echo "targets -set -nocase -filter {name =~\"APU*\"}" >> $(BUILD)/run.tcl
+# 	echo "loadhw -hw $(XSA_FILE) -mem-ranges [list {0x40000000 0xbfffffff}] -regs" >> $(BUILD)/run.tcl
+# 	echo "configparams force-mem-access 1" >> $(BUILD)/run.tcl
+# 	echo "targets -set -nocase -filter {name =~\"APU*\"}" >> $(BUILD)/run.tcl
+# 	echo "source $(WORKSPACE)/$(APPLICATION)/_ide/psinit/ps7_init.tcl" >> $(BUILD)/run.tcl
+# 	echo "ps7_init" >> $(BUILD)/run.tcl
+# 	echo "ps7_post_config" >> $(BUILD)/run.tcl
+# 	echo "targets -set -nocase -filter {name =~ \"*A9*#0\"}" >> $(BUILD)/run.tcl
+# 	echo "dow $(TARGET)" >> $(BUILD)/run.tcl
+# 	echo "configparams force-mem-access 0" >> $(BUILD)/run.tcl
+# 	echo "targets -set -nocase -filter {name =~ \"*A9*#0\"}" >> $(BUILD)/run.tcl
+# 	echo "con" >> $(BUILD)/run.tcl
+# 	xsct $(BUILD)/run.tcl
 
+$(BUILD)/loadhw.py: $(BUILD)
+	echo "from xsct_utils import *" > $@
+	echo "xsct = Xsct()" >> $@
+	echo "xsct.program_board(\"$(BITFILE)\", \"$(XSA_FILE)\", \"$(PS7_INIT)\")" >> $@
+
+loadhw: $(BITFILE) $(TARGET) $(BUILD)/loadhw.py 
+	export PYTHONPATH=$(ZYNQ_TOOLS); \
+	$(PYTHON) $(BUILD)/loadhw.py 
 
 tty:
 	sudo screen $(TTY_DEV) 115200

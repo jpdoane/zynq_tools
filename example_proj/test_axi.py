@@ -1,28 +1,6 @@
 #!/usr/bin/env python3
 
-import argparse
-import os
-import time
-import sys
-from pathlib import Path
-
-# ---------------------------------------------------------------------------
-# Paths
-# ---------------------------------------------------------------------------
-
-PROJ_DIR = os.path.dirname(os.path.abspath(__file__))
-BUILD_DIR  = os.path.join(PROJ_DIR, 'build')
-INC_DIR  = os.path.join(PROJ_DIR, '..')
-
-sys.path.append(str(INC_DIR))
 from xsct_utils import Xsct
-
-
-proj_name = "my_zynq_project"
-BITFILE = os.path.join(BUILD_DIR, f'{proj_name}.bit')
-XSA     = os.path.join(BUILD_DIR, f'{proj_name}.xsa')
-PS7     = os.path.join(BUILD_DIR, 'workspace', proj_name, '_ide', 'psinit', 'ps7_init.tcl')
-
 
 # ---------------------------------------------------------------------------
 # Memory map
@@ -30,9 +8,8 @@ PS7     = os.path.join(BUILD_DIR, 'workspace', proj_name, '_ide', 'psinit', 'ps7
 REG0_BASE      = 0x40000000
 REG1_BASE      = 0x42000000
 
-
 xsct = Xsct()
-xsct.program_board(BITFILE, XSA, PS7)
+xsct.connect()
 
 r0in = 0xdeadbeef
 r1in = 0x1234abcd

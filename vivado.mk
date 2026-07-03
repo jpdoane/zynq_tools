@@ -70,6 +70,7 @@ INC_FILES := $(call uniq_base,$(call process_f_files,$(INC_FILES)))
 # distclean: remove archived output files
 ###################################################################
 
+ENV_SCRIPT = $(BUILD)/env.sh
 PROJECTFILE = $(BUILD)/$(PROJECT).xpr
 SYNTH_DCP = $(BUILD)/post_synth.dcp
 IMPL_DCP = $(BUILD)/post_route.dcp
@@ -79,7 +80,10 @@ XSA_FILE = $(BUILD)/$(PROJECT).xsa
 VDEF_FILE = $(BUILD)/defines.v
 SETUP_FILE = $(BUILD)/setup.tcl
 
-all: fpga
+TARGET ?= 
+
+all: fpga $(TARGET)
+
 vivado: $(SETUP_FILE)
 	cd $(BUILD); vivado -source $<
 
@@ -126,9 +130,14 @@ $(VDEF_FILE): $(DEFS)
 	fi
 
 
-
-$(SETUP_FILE): $(VDEF_FILE) $(RTL_FILES) $(TCL_FILES) $(XDC_FILES)
+$(BUILD):
 	-mkdir $(BUILD)
+
+$(ENV_SCRIPT): $(BUILD)
+	echo '#!/bin/bash' > $@
+	echo 'export PYTHONPATH="$(PYTHONPATH):$(ZYNQ_TOOLS)"' >> $@
+
+$(SETUP_FILE): $(VDEF_FILE) $(RTL_FILES) $(TCL_FILES) $(XDC_FILES) | $(BUILD) $(ENV_SCRIPT)
 	echo "set ROOT $(ROOT)" > $@
 	echo "set BUILD $(BUILD)" >> $@
 	echo "set DEVICE_LONG $(DEVICE_LONG)" >> $@
@@ -217,12 +226,13 @@ $(BUILD)/debug_hw.tcl: $(BUILD)/connect_device.tcl $(PROBE_FILE)
 	echo "set_property PROBES.FILE $(PROBE_FILE) [current_hw_device]" >> $@
 	echo "set_property FULL_PROBES.FILE $(PROBE_FILE) [current_hw_device]" >> $@
 	echo "set_property PROGRAM.FILE $(BITFILE) [current_hw_device]" >> $@
-	echo "program_hw_devices [current_hw_device]" >> $@
 	echo "refresh_hw_device [current_hw_device]" >> $@
 	echo "display_hw_ila_data [ get_hw_ila_data hw_ila_data_1 -of_objects [get_hw_ilas -of_objects [current_hw_device] -filter {CELL_NAME=~"ila_*"}]]" >> $@
 
+# echo "program_hw_devices [current_hw_device]" >> $@
+
 $(BUILD)/program.tcl: $(BUILD)/connect_device.tcl $(BITFILE)
-	cp $(BUILD)/connect_device.tcl"  $@
+	cp $(BUILD)/connect_device.tcl  $@
 	echo "refresh_hw_device -update_hw_probes false [current_hw_device]" >> $@
 	echo "set_property PROGRAM.FILE {$(PROJECT).bit} [current_hw_device]" >> $@
 	echo "program_hw_devices [current_hw_device]" >> $@

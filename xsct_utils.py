@@ -7,14 +7,6 @@ using xsct as a persistent subprocess controlled over stdin/stdout.
 import subprocess
 
 XSCT_SENTINEL = '__XSCT_DONE__'
-GPIO_BASE_REG = 0xE000A000
-ELIO_OUT_LOW  = GPIO_BASE_REG + 0x048
-ELIO_OUT_HIGH = GPIO_BASE_REG + 0x04C
-ELIO_IN_LOW   = GPIO_BASE_REG + 0x068
-ELIO_IN_HIGH  = GPIO_BASE_REG + 0x06C
-ELIO_DIR_LOW  = GPIO_BASE_REG + 0x284
-ELIO_DIR_HIGH = GPIO_BASE_REG + 0x2C4
-
 
 class Xsct:
     """
@@ -137,8 +129,8 @@ class Xsct:
 
         print('--- Loading hardware platform ...')
         self.set_target_ps()
-        self.run(f'loadhw -hw {{{xsa}}} -mem-ranges [list {{{self.mem_range[0]} {self.mem_range[-1]}}}] -regs')
-        # self.run(f'loadhw -hw {{{xsa}}}')
+        # self.run(f'loadhw -hw {{{xsa}}} -mem-ranges [list {{{self.mem_range[0]} {self.mem_range[-1]}}}] -regs')
+        self.run(f'loadhw -hw {{{xsa}}}')
         self.run('configparams force-mem-access 1')
 
         if len(ps7_initfile)>0:
@@ -154,6 +146,13 @@ class Xsct:
 
     def read32(self, addr: int) -> int:
         raw = self.eval(f'puts [mrd -value {addr:#010x}]')
+        return int(raw)
+
+    def write(self, size: str, addr: int, value: int):
+        self.run(f'mwr -size {size} {addr:#010x} {value:#010x}')
+
+    def read(self, size: str, addr: int) -> int:
+        raw = self.eval(f'puts [mrd -size {size} -value {addr:#010x}]')
         return int(raw)
 
     def write_block(self, base: int, values: list[int]):
