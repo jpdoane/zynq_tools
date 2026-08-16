@@ -82,7 +82,10 @@ SETUP_FILE = $(BUILD)/setup.tcl
 
 TARGET ?= 
 
-all: fpga $(TARGET)
+
+default:: fpga $(TARGET)
+
+all:: fpga $(TARGET)
 
 vivado: $(SETUP_FILE)
 	cd $(BUILD); vivado -source $<

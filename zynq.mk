@@ -128,3 +128,5 @@ loadhw: $(BITFILE) $(TARGET) $(BUILD)/loadhw.py
 
 tty:
 	sudo screen $(TTY_DEV) 115200
+
+default:: $(TARGET)
